@@ -1,0 +1,1 @@
+DATABASE_URL=postgresql+psycopg2://postgres:changeme@localhost:5432/fedor_sokolov
