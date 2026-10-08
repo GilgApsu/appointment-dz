@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Вход</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 360px; margin: 4rem auto; padding: 0 1rem; }
+  h1 { font-size: 1.4rem; }
+  label { display: block; margin-top: .75rem; font-size: .9rem; color: #444; }
+  input { width: 100%; padding: .5rem; font: inherit; border: 1px solid #bbb; border-radius: 6px; }
+  button { margin-top: 1rem; width: 100%; padding: .55rem; font: inherit; cursor: pointer; }
+  .error { color: #a12222; margin-top: .75rem; font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<h1>Вход в сервис</h1>
+
+<form id="login-form">
+  <label for="username">Логин</label>
+  <input id="username" name="username" autocomplete="username" required>
+
+  <label for="password">Пароль</label>
+  <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+  <button type="submit">Войти</button>
+</form>
+
+<div class="error" id="error" hidden></div>
+
+<script src="/static/common.js"></script>
+<script>
+(function () {
+  const form = document.getElementById("login-form");
+  const errorBox = document.getElementById("error");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errorBox.hidden = true;
+
+    const username = document.getElementById("username").value.trim();
+    const password = document.getElementById("password").value;
+
+    try {
+      const response = await fetch("/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ username, password }),
+      });
+
+      if (!response.ok) {
+        errorBox.textContent = response.status === 401
+          ? "Неверный логин или пароль."
+          : "Ошибка входа: " + response.status;
+        errorBox.hidden = false;
+        return;
+      }
+
+      const data = await response.json();
+      // Ожидается { access_token: "..." }.
+      // Если у вас cookie-сессия — просто переходим на список.
+      if (data.access_token) App.setToken(data.access_token);
+
+      window.location.href = "/static/appointments.html";
+    } catch (err) {
+      errorBox.textContent = "Сеть недоступна: " + err.message;
+      errorBox.hidden = false;
+    }
+  });
+})();
+</script>
+</body>
+</html>

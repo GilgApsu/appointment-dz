@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Сводка</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 960px; margin: 0 auto; padding: 0 1rem 3rem; color: #222; }
+  .topnav { display: flex; align-items: center; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid #ddd; margin-bottom: 1.5rem; }
+  .topnav .brand { font-weight: 600; margin-right: auto; }
+  .nav-link { color: #444; text-decoration: none; padding: .25rem .5rem; border-radius: 4px; }
+  .nav-link:hover { background: #f0f0f0; }
+  .nav-link.active { background: #eef2ff; color: #3448a3; }
+  .nav-link.logout { color: #a12222; }
+  h1 { font-size: 1.4rem; }
+  .filters { display: flex; gap: .5rem; flex-wrap: wrap; align-items: end; margin: 1rem 0; }
+  .filters label { display: block; font-size: .85rem; color: #555; }
+  .filters input { padding: .4rem .5rem; font: inherit; border: 1px solid #bbb; border-radius: 6px; }
+  .filters button { padding: .45rem .9rem; font: inherit; cursor: pointer; border-radius: 6px; border: 1px solid #bbb; background: #f7f7f7; }
+  table { width: 100%; border-collapse: collapse; margin-top: .5rem; }
+  th, td { text-align: left; padding: .55rem .6rem; border-bottom: 1px solid #eee; font-size: .95rem; }
+  th { color: #555; font-weight: 600; }
+  tfoot td { font-weight: 600; border-top: 2px solid #ddd; }
+  .bad { color: #a12222; }
+  .good { color: #1e7a33; }
+  .empty { color: #888; padding: 1rem 0; }
+</style>
+</head>
+<body>
+
+<div id="nav"></div>
+
+<h1>Сводка по загрузке специалистов</h1>
+
+<div class="filters">
+  <div>
+    <label for="date-from">С даты</label>
+    <input id="date-from" type="date">
+  </div>
+  <div>
+    <label for="date-to">По дату</label>
+    <input id="date-to" type="date">
+  </div>
+  <button id="apply">Применить</button>
+</div>
+
+<div id="table-holder"></div>
+
+<script src="/static/common.js"></script>
+<script>
+(function () {
+  App.mountNav("summary.html");
+
+  const tableHolder = document.getElementById("table-holder");
+
+  // по умолчанию — текущий месяц
+  function isoDate(d) { return d.toISOString().slice(0, 10); }
+  const today = new Date();
+  const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  document.getElementById("date-from").value = isoDate(firstOfMonth);
+  document.getElementById("date-to").value = isoDate(today);
+  document.getElementById("date-from").value = "2026-01-15";
+  document.getElementById("date-to").value   = "2026-01-19";
+
+  function pct(x) {
+    return (x * 100).toFixed(1) + "%";
+  }
+
+  function render(items) {
+    if (!items || items.length === 0) {
+      tableHolder.innerHTML = '<div class="empty">Нет данных за период.</div>';
+      return;
+    }
+
+    let totalSlots = 0, totalBooked = 0, totalCancelled = 0;
+
+    const rows = items.map((r) => {
+      totalSlots += r.total_slots;
+      totalBooked += r.booked_slots;
+      totalCancelled += r.cancelled_slots;
+
+      const load = r.total_slots > 0 ? r.booked_slots / r.total_slots : 0;
+      const loadCls = load >= 0.7 ? "good" : "";
+      const cancelCls = r.cancellation_share >= 0.2 ? "bad" : "";
+
+      return `<tr>
+        <td>${App.escapeHtml(r.specialist_name)}</td>
+        <td>${App.escapeHtml(r.specialization)}</td>
+        <td>${r.total_slots}</td>
+        <td>${r.booked_slots}</td>
+        <td>${r.cancelled_slots}</td>
+        <td class="${loadCls}">${pct(load)}</td>
+        <td class="${cancelCls}">${pct(r.cancellation_share)}</td>
+      </tr>`;
+    }).join("");
+
+    const totalLoad = totalSlots > 0 ? totalBooked / totalSlots : 0;
+    const totalApps = totalBooked + totalCancelled;
+    const totalCancelShare = totalApps > 0 ? totalCancelled / totalApps : 0;
+
+    tableHolder.innerHTML = `<table>
+      <thead>
+        <tr>
+          <th>Специалист</th>
+          <th>Специализация</th>
+          <th>Слотов</th>
+          <th>Занято</th>
+          <th>Отменено</th>
+          <th>Загрузка</th>
+          <th>Доля отмен</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+      <tfoot>
+        <tr>
+          <td colspan="2">Итого</td>
+          <td>${totalSlots}</td>
+          <td>${totalBooked}</td>
+          <td>${totalCancelled}</td>
+          <td>${pct(totalLoad)}</td>
+          <td>${pct(totalCancelShare)}</td>
+        </tr>
+      </tfoot>
+    </table>`;
+  }
+
+  async function load() {
+      // вместо текущего месяца — период, покрывающий сид
+    const from = document.getElementById("date-from").value;
+    const to = document.getElementById("date-to").value;
+
+    const params = new URLSearchParams({ date_from: from, date_to: to });
+
+    const response = await App.api("/summary/?" + params.toString());
+    if (!response.ok) {
+      tableHolder.innerHTML = `<div class="empty">Ошибка: ${response.status}</div>`;
+      return;
+    }
+    const data = await response.json();
+    render(data.items || []);
+  }
+
+  document.getElementById("apply").addEventListener("click", load);
+  load();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Записи</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 960px; margin: 0 auto; padding: 0 1rem 3rem; color: #222; }
+  .topnav { display: flex; align-items: center; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid #ddd; margin-bottom: 1.5rem; }
+  .topnav .brand { font-weight: 600; margin-right: auto; }
+  .nav-link { color: #444; text-decoration: none; padding: .25rem .5rem; border-radius: 4px; }
+  .nav-link:hover { background: #f0f0f0; }
+  .nav-link.active { background: #eef2ff; color: #3448a3; }
+  .nav-link.logout { color: #a12222; }
+  h1 { font-size: 1.4rem; }
+  .filters { display: flex; gap: .5rem; flex-wrap: wrap; margin: 1rem 0; }
+  .filters input, .filters select { padding: .4rem .5rem; font: inherit; border: 1px solid #bbb; border-radius: 6px; }
+  .filters button { padding: .45rem .9rem; font: inherit; cursor: pointer; border-radius: 6px; border: 1px solid #bbb; background: #f7f7f7; }
+  table { width: 100%; border-collapse: collapse; margin-top: .5rem; }
+  th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid #eee; font-size: .95rem; }
+  th { color: #555; font-weight: 600; }
+  tr:hover td { background: #fafafa; }
+  .status { display: inline-block; padding: .1rem .45rem; border-radius: 4px; font-size: .8rem; font-weight: 600; }
+  .status.active    { background: #e3f7e6; color: #1e7a33; }
+  .status.cancelled { background: #fde8e8; color: #a12222; }
+  .pager { display: flex; align-items: center; gap: .5rem; margin-top: 1rem; }
+  .pager button { padding: .35rem .7rem; font: inherit; cursor: pointer; border-radius: 6px; border: 1px solid #bbb; background: #f7f7f7; }
+  .pager button:disabled { opacity: .5; cursor: default; }
+  .empty { color: #888; padding: 1rem 0; }
+  .muted { color: #666; font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<div id="nav"></div>
+
+<h1>Записи на приём</h1>
+
+<div class="filters">
+  <select id="status">
+    <option value="">Все статусы</option>
+    <option value="active">active</option>
+    <option value="cancelled">cancelled</option>
+  </select>
+
+  <input id="page-size" type="number" min="1" max="100" value="20" title="Размер страницы">
+
+  <button id="apply">Применить</button>
+  <button id="reset">Сбросить</button>
+</div>
+
+<div id="table-holder"></div>
+
+<div class="pager">
+  <button id="prev">← Назад</button>
+  <span class="muted" id="page-info"></span>
+  <button id="next">Вперёд →</button>
+</div>
+
+<script src="/static/common.js"></script>
+<script>
+(function () {
+  App.mountNav("appointments.html");
+
+  const state = { page: 1, page_size: 20, status: "" };
+  let total = 0;
+
+  const tableHolder = document.getElementById("table-holder");
+  const pageInfo = document.getElementById("page-info");
+  const prevBtn = document.getElementById("prev");
+  const nextBtn = document.getElementById("next");
+
+  function renderRows(items) {
+    if (items.length === 0) {
+      tableHolder.innerHTML = '<div class="empty">Записей не найдено.</div>';
+      return;
+    }
+
+    const rows = items.map((a) => `
+      <tr>
+        <td>${a.id}</td>
+        <td>${App.escapeHtml(a.client_name)}</td>
+        <td>${App.statusBadge(a.status)}</td>
+        <td>${App.escapeHtml(App.fmtDateTime(a.created_at))}</td>
+        <td><a href="/static/appointment.html?id=${a.id}">Открыть</a></td>
+      </tr>
+    `).join("");
+
+    tableHolder.innerHTML = `<table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Клиент</th>
+          <th>Статус</th>
+          <th>Создана</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+
+  async function load() {
+    const params = new URLSearchParams();
+    params.set("page", state.page);
+    params.set("page_size", state.page_size);
+    if (state.status) params.set("status", state.status);
+
+    const response = await App.api("/appointments/?" + params.toString());
+    if (!response.ok) {
+      tableHolder.innerHTML = `<div class="empty">Ошибка: ${response.status}</div>`;
+      return;
+    }
+
+    const data = await response.json();
+    total = data.total;
+    renderRows(data.items || []);
+
+    const totalPages = Math.max(1, Math.ceil(total / state.page_size));
+    pageInfo.textContent = `Страница ${state.page} из ${totalPages} · всего ${total}`;
+    prevBtn.disabled = state.page <= 1;
+    nextBtn.disabled = state.page >= totalPages;
+  }
+
+  document.getElementById("apply").addEventListener("click", () => {
+    state.status = document.getElementById("status").value;
+    state.page_size = Number(document.getElementById("page-size").value) || 20;
+    state.page = 1;
+    load();
+  });
+
+  document.getElementById("reset").addEventListener("click", () => {
+    document.getElementById("status").value = "";
+    document.getElementById("page-size").value = 20;
+    Object.assign(state, { page: 1, page_size: 20, status: "" });
+    load();
+  });
+
+  prevBtn.addEventListener("click", () => {
+    if (state.page > 1) { state.page--; load(); }
+  });
+  nextBtn.addEventListener("click", () => {
+    state.page++;
+    load();
+  });
+
+  load();
+})();
+</script>
+</body>
+</html>
