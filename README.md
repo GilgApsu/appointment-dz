@@ -41,7 +41,7 @@
 
 | Переменная     | Назначение                | Пример                      |
 |----------------|---------------------------|-----------------------------|
-| DATABASE_URL   | подключение к базе данных | postgresql+psycopg2://postgres:123@localhost:changeme/fedor_sokolov |
+| DATABASE_URL   | подключение к базе данных | postgresql+psycopg2://postgres:changeme@localhost:changeme/fedor_sokolov |
 
 
 ## Проверка работоспособности
